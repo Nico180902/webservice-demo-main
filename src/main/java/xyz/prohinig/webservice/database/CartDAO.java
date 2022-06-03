@@ -62,7 +62,7 @@ public class CartDAO {
     }
 
     private boolean checkoutCart(Cart cart, Connection connection) throws SQLException {
-        String checkoutCartStatement = "update cart set active = false where id = ?;";
+        String checkoutCartStatement = "UPDATE cart SET active = false WHERE id = ?;";
 
         try (PreparedStatement preparedStatement = connection.prepareStatement(checkoutCartStatement)) {
             preparedStatement.setInt(1, cart.getId());
@@ -73,25 +73,32 @@ public class CartDAO {
     }
 
     private boolean retainBurgers(Cart cart, Connection connection) throws SQLException {
+
         String deleteBurgerStatement;
+        
         if (cart.getBurgers().isEmpty()) {
             deleteBurgerStatement = "delete from burger where cart_id = ?;";
         } else {
-            String burgerIdsString = cart.getBurgers().stream().map(Burger::getId).map(String::valueOf).collect(Collectors.joining(","));
+            List<Integer> burgerIdList = cart.getBurgers()
+                    .stream()
+                    .map(Burger::getId).toList();
 
-            deleteBurgerStatement = "delete from burger where cart_id = ? and id not in (" + burgerIdsString + ");";
-        }
+            Array burgerIdsInArray = connection.createArrayOf("integer", burgerIdList.toArray());
 
-        try (PreparedStatement preparedStatement = connection.prepareStatement(deleteBurgerStatement)) {
-            preparedStatement.setInt(1, cart.getId());
-            preparedStatement.executeUpdate();
+            deleteBurgerStatement = "DELETE FROM burger WHERE cart_id = ? and id != any (?);";
+
+            try (PreparedStatement preparedStatement = connection.prepareStatement(deleteBurgerStatement)) {
+                preparedStatement.setInt(1, cart.getId());
+                preparedStatement.setArray(2, burgerIdsInArray);
+                preparedStatement.executeUpdate();
+            }
         }
 
         return true;
     }
 
     private boolean persistBurger(Burger burger, Cart cart, Connection connection) throws SQLException {
-        String insertBurgerStatement = "insert into burger(patty_type, cheese, salad, tomato, cart_id)" + " values(?, ?, ?, ?, ?);";
+        String insertBurgerStatement = "INSERT INTO burger(patty_type, cheese, salad, tomato, cart_id)" + " VALUES(?, ?, ?, ?, ?);";
 
         try (PreparedStatement preparedStatement = connection.prepareStatement(insertBurgerStatement, PreparedStatement.RETURN_GENERATED_KEYS)) {
             preparedStatement.setString(1, burger.getPattyType().name());
@@ -113,7 +120,7 @@ public class CartDAO {
     }
 
     private boolean persistCart(Cart cart, Connection connection) throws SQLException {
-        String insertCartStatement = "insert into cart default values returning id;";
+        String insertCartStatement = "INSERT INTO cart DEFAULT VALUES RETURNING id;";
         try (Statement statement = connection.createStatement()) {
             statement.execute(insertCartStatement, Statement.RETURN_GENERATED_KEYS);
             ResultSet resultSet = statement.getGeneratedKeys();
