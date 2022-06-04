@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class CartDAO {
 
@@ -75,7 +74,7 @@ public class CartDAO {
     private boolean retainBurgers(Cart cart, Connection connection) throws SQLException {
 
         String deleteBurgerStatement;
-        
+
         if (cart.getBurgers().isEmpty()) {
             deleteBurgerStatement = "delete from burger where cart_id = ?;";
         } else {
@@ -278,5 +277,28 @@ public class CartDAO {
             return false;
         }
 
+    }
+
+    public Cart createEmptyCart() {
+
+        try (Connection connection = databaseConnection.getConnection()) {
+            if (connection == null) {
+                throw new IllegalStateException();
+            }
+
+            String insertCartStatement = "INSERT INTO cart DEFAULT VALUES RETURNING *;";
+            try (Statement statement = connection.createStatement()) {
+                statement.execute(insertCartStatement, Statement.RETURN_GENERATED_KEYS);
+                ResultSet resultSet = statement.getGeneratedKeys();
+
+                if (resultSet.next()) {
+                    return new Cart(resultSet.getInt("id"), resultSet.getBoolean("active"));
+                } else {
+                    return null;
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
