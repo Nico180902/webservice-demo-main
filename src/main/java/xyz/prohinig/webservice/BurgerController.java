@@ -86,7 +86,7 @@ public class BurgerController {
 
         checkIfBurgersExistForEnteredIds(cart, enteredBurgerIds);
 
-        if (!burgerDAO.deleteBurgersByID(cart, enteredBurgerIds)) {
+        if (!burgerDAO.deleteBurgersById(cart, enteredBurgerIds)) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR);
         }
 

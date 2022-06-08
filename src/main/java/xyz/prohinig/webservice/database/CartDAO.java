@@ -1,6 +1,7 @@
 package xyz.prohinig.webservice.database;
 
 
+import org.jetbrains.annotations.VisibleForTesting;
 import xyz.prohinig.webservice.model.*;
 
 import java.sql.*;
@@ -11,14 +12,15 @@ import java.util.Map;
 
 public class CartDAO {
 
-    private static final String BURGER_ID_COLUMN = "id";
-    private static final String BURGER_PATTY_TYPE_COLUMN = "patty_type";
-    private static final String BURGER_CHEESE_COLUMN = "cheese";
-    private static final String BURGER_SALAD_COLUMN = "salad";
-    private static final String BURGER_TOMATO_COLUMN = "tomato";
-    private static final String BURGER_CART_ID_COLUMN = "cart_id";
-    private static final String CART_ID_COLUMN = "id";
-    private static final String CART_ACTIVE_COLUMN = "active";
+    @VisibleForTesting
+    protected static final String BURGER_ID_COLUMN = "id";
+    protected static final String BURGER_PATTY_TYPE_COLUMN = "patty_type";
+    protected static final String BURGER_CHEESE_COLUMN = "cheese";
+    protected static final String BURGER_SALAD_COLUMN = "salad";
+    protected static final String BURGER_TOMATO_COLUMN = "tomato";
+    protected static final String BURGER_CART_ID_COLUMN = "cart_id";
+    protected static final String CART_ID_COLUMN = "id";
+    protected static final String CART_ACTIVE_COLUMN = "active";
 
     private final DatabaseConnection databaseConnection;
 
@@ -76,7 +78,13 @@ public class CartDAO {
         String deleteBurgerStatement;
 
         if (cart.getBurgers().isEmpty()) {
-            deleteBurgerStatement = "delete from burger where cart_id = ?;";
+            deleteBurgerStatement = "DELETE FROM burger WHERE cart_id = ?;";
+
+            try (PreparedStatement preparedStatement = connection.prepareStatement(deleteBurgerStatement)) {
+                preparedStatement.setInt(1, cart.getId());
+                preparedStatement.executeUpdate();
+            }
+
         } else {
             List<Integer> burgerIdList = cart.getBurgers()
                     .stream()
@@ -231,14 +239,14 @@ public class CartDAO {
     }
 
     private Cart getCartByID(Connection connection, int id) throws SQLException {
-        String getCartByIDQuery = "SELECT * from cart where id = ?";
+        String getCartByIDQuery = "SELECT cart.id AS cart_id, cart.active from cart where id = ?";
 
         try (PreparedStatement preparedStatement = connection.prepareStatement(getCartByIDQuery)) {
             preparedStatement.setInt(1, id);
             try (ResultSet resultSet = preparedStatement.executeQuery()) {
 
                 if (resultSet.next()) {
-                    return new Cart(resultSet.getInt(CART_ID_COLUMN), !resultSet.getBoolean(CART_ACTIVE_COLUMN));
+                    return new Cart(resultSet.getInt("cart_id"), !resultSet.getBoolean(CART_ACTIVE_COLUMN));
                 }
                 return null;
             }
@@ -292,13 +300,13 @@ public class CartDAO {
                 ResultSet resultSet = statement.getGeneratedKeys();
 
                 if (resultSet.next()) {
-                    return new Cart(resultSet.getInt("id"), resultSet.getBoolean("active"));
+                    return new Cart(resultSet.getInt(CART_ID_COLUMN), !resultSet.getBoolean(CART_ACTIVE_COLUMN));
                 } else {
                     return null;
                 }
             }
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException();
         }
     }
 }
