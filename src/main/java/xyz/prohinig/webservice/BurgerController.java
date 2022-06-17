@@ -97,7 +97,7 @@ public class BurgerController {
         Cart cart = cartDAO.getCartByID(cartId);
 
         if (cart == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No cart could be found for the entered ID.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No cart could be found for the ID entered.");
         }
 
         return cart;
