@@ -96,7 +96,7 @@ class CartDAOTest {
     }
 
     @Test
-    void update_addsBurgersWithoutIDToCartAndAssignsIDAndReturnsTrue() throws Exception {
+    void update_addsBurgersWithoutIdToCartAndAssignsIdAndReturnsTrue() throws Exception {
 
         Cart cart = new Cart(1, false);
         Burger firstBurger = new Burger(1, PattyType.MEAT, null, null, null);

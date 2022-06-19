@@ -108,10 +108,8 @@ public class CartController {
     public Map<String, Boolean> getCartStatus(@PathVariable(value = "cartId") int cartId) {
         Cart cart = getCartAndVerifyExists(cartId);
 
-        CartDto cartDto = cartMapper.toCartDto(cart);
-
         Map<String, Boolean> statusMap = new HashMap<>();
-        statusMap.put("active", cartDto.isActive());
+        statusMap.put("active", !cart.isCheckedOut());
         return statusMap;
     }
 
@@ -126,7 +124,9 @@ public class CartController {
         }
 
         if (!statusMap.get("active")) {
-            cartDAO.checkoutCart(cart);
+            if(!cartDAO.checkoutCart(cart)) {
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR);
+            }
         } else if (statusMap.get("active")) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "It is only allowed to set the active value to 'false'.");
         }
