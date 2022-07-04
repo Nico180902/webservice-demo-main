@@ -39,7 +39,7 @@ public class CartController {
     public CartDto getCart(@PathVariable(value = "cartId") int cartId) {
         Cart cart = cartDAO.getCartByID(cartId);
         if (cart == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No cart could be found for the ID entered.");
         }
 
         return cartMapper.toCartDto(cart);
@@ -51,7 +51,7 @@ public class CartController {
         Cart cart = cartDAO.getCartByID(cartId);
 
         if(cart == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No cart could be found for the ID entered.");
         }
 
         if (!cartDAO.deleteCart(cart)) {
