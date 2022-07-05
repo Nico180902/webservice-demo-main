@@ -309,4 +309,45 @@ public class CartDAO {
             throw new IllegalStateException();
         }
     }
+
+    public boolean deleteAllBurgersOfCart(Cart cart) {
+
+        try (Connection connection = databaseConnection.getConnection()) {
+            if (connection == null) {
+                throw new IllegalStateException();
+            }
+
+            String deleteAllBurgerStatement = "DELETE FROM burger WHERE cart_id = ?;";
+            try (PreparedStatement preparedStatement = connection.prepareStatement(deleteAllBurgerStatement)) {
+                preparedStatement.setInt(1, cart.getId());
+                preparedStatement.executeUpdate();
+            }
+
+            return true;
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    public boolean checkoutCart(Cart cart) {
+
+        try (Connection connection = databaseConnection.getConnection()) {
+            if (connection == null) {
+                throw new IllegalStateException();
+            }
+
+            String checkoutCartStatement = "UPDATE cart SET active = false WHERE id = ?;";
+
+            try (PreparedStatement preparedStatement = connection.prepareStatement(checkoutCartStatement)) {
+                preparedStatement.setInt(1, cart.getId());
+                preparedStatement.execute();
+            }
+
+            return true;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }
