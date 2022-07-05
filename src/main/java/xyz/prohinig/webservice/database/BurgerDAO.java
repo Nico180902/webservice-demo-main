@@ -74,11 +74,11 @@ public class BurgerDAO {
                 }
             }
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException();
         }
     }
 
-    public boolean deleteBurgersByID(Cart cart, List<Integer> burgerIdList) {
+    public boolean deleteBurgersById(Cart cart, List<Integer> burgerIdList) {
 
         try (Connection connection = databaseConnection.getConnection()) {
             if (connection == null) {
@@ -87,7 +87,7 @@ public class BurgerDAO {
 
             Array burgerIdsInArray = connection.createArrayOf("integer", burgerIdList.toArray());
 
-            String deleteBurgerStatement = "DELETE FROM burger WHERE cart_id = ? AND id = any (?); ";
+            String deleteBurgerStatement = "DELETE FROM burger WHERE cart_id = ? AND id = any (?);";
 
             try (PreparedStatement preparedStatement = connection.prepareStatement(deleteBurgerStatement)) {
                 preparedStatement.setInt(1, cart.getId());
@@ -98,7 +98,7 @@ public class BurgerDAO {
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException();
         }
     }
 
