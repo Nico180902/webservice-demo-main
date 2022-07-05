@@ -14,7 +14,9 @@ import xyz.prohinig.webservice.mapper.CartMapper;
 import xyz.prohinig.webservice.model.Burger;
 import xyz.prohinig.webservice.model.Cart;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -37,18 +39,14 @@ public class CartController {
     @GetMapping("/carts")
     public CartsDto getAllCarts() {
         List<Cart> cartList = cartDAO.getAllCarts();
-        List<CartDto> cartDtoList = cartList.stream()
-                .map(cartMapper::toCartDto)
-                .collect(Collectors.toList());
+        List<CartDto> cartDtoList = cartList.stream().map(cartMapper::toCartDto).collect(Collectors.toList());
         return new CartsDto(cartDtoList.size(), cartDtoList);
     }
 
     @GetMapping("/carts/{cartId}")
     public CartDto getCart(@PathVariable(value = "cartId") int cartId) {
-        Cart cart = cartDAO.getCartByID(cartId);
-        if (cart == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No cart could be found for the ID entered.");
-        }
+
+        Cart cart = getCartAndVerifyExists(cartId);
 
         return cartMapper.toCartDto(cart);
     }
@@ -56,11 +54,8 @@ public class CartController {
     @DeleteMapping("/carts/{cartId}")
     @ResponseStatus(value = HttpStatus.NO_CONTENT)
     public void deleteCart(@PathVariable(value = "cartId") int cartId) {
-        Cart cart = cartDAO.getCartByID(cartId);
 
-        if (cart == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No cart could be found for the ID entered.");
-        }
+        Cart cart = getCartAndVerifyExists(cartId);
 
         if (!cartDAO.deleteCart(cart)) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -88,5 +83,64 @@ public class CartController {
             }
         }
 
+    }
+
+    @PutMapping("carts/{cartId}/burgers")
+    @ResponseStatus(value = HttpStatus.NO_CONTENT)
+    public void updateCart(@PathVariable(value = "cartId") int cartId, @RequestBody List<BurgerDto> burgerDtoList) {
+
+        Cart cart = getCartAndVerifyExists(cartId);
+
+        List<Burger> burgerList = burgerDtoList.stream().map(burgerMapper::fromBurgerDto).toList();
+
+        if (!cartDAO.deleteAllBurgersOfCart(cart)) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+        for (Burger burger : burgerList) {
+            if (!burgerDAO.persistBurger(burger, cart)) {
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+        }
+    }
+
+    @GetMapping("carts/{cartId}/status")
+    public Map<String, Boolean> getCartStatus(@PathVariable(value = "cartId") int cartId) {
+        Cart cart = getCartAndVerifyExists(cartId);
+
+        CartDto cartDto = cartMapper.toCartDto(cart);
+
+        Map<String, Boolean> statusMap = new HashMap<>();
+        statusMap.put("active", cartDto.isActive());
+        return statusMap;
+    }
+
+    @PutMapping("carts/{cartId}/status")
+    @ResponseStatus(value = HttpStatus.NO_CONTENT)
+    public void checkoutCart(@PathVariable(value = "cartId") int cartId, @RequestBody Map<String, Boolean> statusMap) {
+
+        Cart cart = getCartAndVerifyExists(cartId);
+
+        if (cart.isCheckedOut()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This cart is already checked out.");
+        }
+
+        if (!statusMap.get("active")) {
+            cartDAO.checkoutCart(cart);
+        } else if (statusMap.get("active")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "It is only allowed to set the active value to 'false'.");
+        }
+
+    }
+
+    private Cart getCartAndVerifyExists(int cartId) {
+
+        Cart cart = cartDAO.getCartByID(cartId);
+
+        if (cart == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No cart could be found for the ID entered.");
+        }
+
+        return cart;
     }
 }
