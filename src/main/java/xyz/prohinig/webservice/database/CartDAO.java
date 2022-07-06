@@ -1,6 +1,7 @@
 package xyz.prohinig.webservice.database;
 
 
+import org.jetbrains.annotations.VisibleForTesting;
 import xyz.prohinig.webservice.model.*;
 
 import java.sql.*;
@@ -8,18 +9,18 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class CartDAO {
 
-    private static final String BURGER_ID_COLUMN = "id";
-    private static final String BURGER_PATTY_TYPE_COLUMN = "patty_type";
-    private static final String BURGER_CHEESE_COLUMN = "cheese";
-    private static final String BURGER_SALAD_COLUMN = "salad";
-    private static final String BURGER_TOMATO_COLUMN = "tomato";
-    private static final String BURGER_CART_ID_COLUMN = "cart_id";
-    private static final String CART_ID_COLUMN = "id";
-    private static final String CART_ACTIVE_COLUMN = "active";
+    @VisibleForTesting
+    protected static final String BURGER_ID_COLUMN = "id";
+    protected static final String BURGER_PATTY_TYPE_COLUMN = "patty_type";
+    protected static final String BURGER_CHEESE_COLUMN = "cheese";
+    protected static final String BURGER_SALAD_COLUMN = "salad";
+    protected static final String BURGER_TOMATO_COLUMN = "tomato";
+    protected static final String BURGER_CART_ID_COLUMN = "cart_id";
+    protected static final String CART_ID_COLUMN = "id";
+    protected static final String CART_ACTIVE_COLUMN = "active";
 
     private final DatabaseConnection databaseConnection;
 
@@ -62,7 +63,7 @@ public class CartDAO {
     }
 
     private boolean checkoutCart(Cart cart, Connection connection) throws SQLException {
-        String checkoutCartStatement = "update cart set active = false where id = ?;";
+        String checkoutCartStatement = "UPDATE cart SET active = false WHERE id = ?;";
 
         try (PreparedStatement preparedStatement = connection.prepareStatement(checkoutCartStatement)) {
             preparedStatement.setInt(1, cart.getId());
@@ -73,25 +74,38 @@ public class CartDAO {
     }
 
     private boolean retainBurgers(Cart cart, Connection connection) throws SQLException {
+
         String deleteBurgerStatement;
+
         if (cart.getBurgers().isEmpty()) {
-            deleteBurgerStatement = "delete from burger where cart_id = ?;";
+            deleteBurgerStatement = "DELETE FROM burger WHERE cart_id = ?;";
+
+            try (PreparedStatement preparedStatement = connection.prepareStatement(deleteBurgerStatement)) {
+                preparedStatement.setInt(1, cart.getId());
+                preparedStatement.executeUpdate();
+            }
+
         } else {
-            String burgerIdsString = cart.getBurgers().stream().map(Burger::getId).map(String::valueOf).collect(Collectors.joining(","));
+            List<Integer> burgerIdList = cart.getBurgers()
+                    .stream()
+                    .map(Burger::getId).toList();
 
-            deleteBurgerStatement = "delete from burger where cart_id = ? and id not in (" + burgerIdsString + ");";
-        }
+            Array burgerIdsInArray = connection.createArrayOf("integer", burgerIdList.toArray());
 
-        try (PreparedStatement preparedStatement = connection.prepareStatement(deleteBurgerStatement)) {
-            preparedStatement.setInt(1, cart.getId());
-            preparedStatement.executeUpdate();
+            deleteBurgerStatement = "DELETE FROM burger WHERE cart_id = ? and id != any (?);";
+
+            try (PreparedStatement preparedStatement = connection.prepareStatement(deleteBurgerStatement)) {
+                preparedStatement.setInt(1, cart.getId());
+                preparedStatement.setArray(2, burgerIdsInArray);
+                preparedStatement.executeUpdate();
+            }
         }
 
         return true;
     }
 
     private boolean persistBurger(Burger burger, Cart cart, Connection connection) throws SQLException {
-        String insertBurgerStatement = "insert into burger(patty_type, cheese, salad, tomato, cart_id)" + " values(?, ?, ?, ?, ?);";
+        String insertBurgerStatement = "INSERT INTO burger(patty_type, cheese, salad, tomato, cart_id)" + " VALUES(?, ?, ?, ?, ?);";
 
         try (PreparedStatement preparedStatement = connection.prepareStatement(insertBurgerStatement, PreparedStatement.RETURN_GENERATED_KEYS)) {
             preparedStatement.setString(1, burger.getPattyType().name());
@@ -113,7 +127,7 @@ public class CartDAO {
     }
 
     private boolean persistCart(Cart cart, Connection connection) throws SQLException {
-        String insertCartStatement = "insert into cart default values returning id;";
+        String insertCartStatement = "INSERT INTO cart DEFAULT VALUES RETURNING id;";
         try (Statement statement = connection.createStatement()) {
             statement.execute(insertCartStatement, Statement.RETURN_GENERATED_KEYS);
             ResultSet resultSet = statement.getGeneratedKeys();
@@ -225,14 +239,14 @@ public class CartDAO {
     }
 
     private Cart getCartByID(Connection connection, int id) throws SQLException {
-        String getCartByIDQuery = "SELECT * from cart where id = ?";
+        String getCartByIDQuery = "SELECT cart.id AS cart_id, cart.active from cart where id = ?";
 
         try (PreparedStatement preparedStatement = connection.prepareStatement(getCartByIDQuery)) {
             preparedStatement.setInt(1, id);
             try (ResultSet resultSet = preparedStatement.executeQuery()) {
 
                 if (resultSet.next()) {
-                    return new Cart(resultSet.getInt(CART_ID_COLUMN), !resultSet.getBoolean(CART_ACTIVE_COLUMN));
+                    return new Cart(resultSet.getInt("cart_id"), !resultSet.getBoolean(CART_ACTIVE_COLUMN));
                 }
                 return null;
             }
@@ -271,5 +285,69 @@ public class CartDAO {
             return false;
         }
 
+    }
+
+    public Cart createEmptyCart() {
+
+        try (Connection connection = databaseConnection.getConnection()) {
+            if (connection == null) {
+                throw new IllegalStateException();
+            }
+
+            String insertCartStatement = "INSERT INTO cart DEFAULT VALUES RETURNING *;";
+            try (Statement statement = connection.createStatement()) {
+                statement.execute(insertCartStatement, Statement.RETURN_GENERATED_KEYS);
+                ResultSet resultSet = statement.getGeneratedKeys();
+
+                if (resultSet.next()) {
+                    return new Cart(resultSet.getInt(CART_ID_COLUMN), !resultSet.getBoolean(CART_ACTIVE_COLUMN));
+                } else {
+                    return null;
+                }
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException();
+        }
+    }
+
+    public boolean deleteAllBurgersOfCart(Cart cart) {
+
+        try (Connection connection = databaseConnection.getConnection()) {
+            if (connection == null) {
+                throw new IllegalStateException();
+            }
+
+            String deleteAllBurgerStatement = "DELETE FROM burger WHERE cart_id = ?;";
+            try (PreparedStatement preparedStatement = connection.prepareStatement(deleteAllBurgerStatement)) {
+                preparedStatement.setInt(1, cart.getId());
+                preparedStatement.executeUpdate();
+            }
+
+            return true;
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    public boolean checkoutCart(Cart cart) {
+
+        try (Connection connection = databaseConnection.getConnection()) {
+            if (connection == null) {
+                throw new IllegalStateException();
+            }
+
+            String checkoutCartStatement = "UPDATE cart SET active = false WHERE id = ?;";
+
+            try (PreparedStatement preparedStatement = connection.prepareStatement(checkoutCartStatement)) {
+                preparedStatement.setInt(1, cart.getId());
+                preparedStatement.execute();
+            }
+
+            return true;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

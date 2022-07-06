@@ -12,6 +12,7 @@ import xyz.prohinig.webservice.mapper.BurgerMapper;
 import xyz.prohinig.webservice.model.Burger;
 import xyz.prohinig.webservice.model.Cart;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -19,7 +20,6 @@ import java.util.stream.Collectors;
 public class BurgerController {
 
     private final BurgerDAO burgerDAO;
-
     private final CartDAO cartDAO;
     private final BurgerMapper burgerMapper;
 
@@ -47,7 +47,7 @@ public class BurgerController {
     }
 
     @GetMapping("/carts/{cartId}/burgers/{burgerId}")
-    public BurgerDto getSpecificBurgerOfCart(@PathVariable(value = "cartId") int cartId, @PathVariable(value = "burgerId") int burgerId ) {
+    public BurgerDto getSpecificBurgerOfCart(@PathVariable(value = "cartId") int cartId, @PathVariable(value = "burgerId") int burgerId) {
 
         Cart cart = getCartAndVerifyExists(cartId);
 
@@ -57,8 +57,8 @@ public class BurgerController {
                 .findFirst()
                 .orElse(null);
 
-        if(burgerDto == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        if (burgerDto == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No burger could be found for the ID entered.");
         }
         return burgerDto;
 
@@ -78,16 +78,40 @@ public class BurgerController {
 
     }
 
+    @DeleteMapping("/carts/{cartId}/burgers/{burgerId}")
+    @ResponseStatus(value = HttpStatus.NO_CONTENT)
+    public void deleteBurgers(@PathVariable(value = "cartId") int cartId, @PathVariable(value = "burgerId") List<Integer> enteredBurgerIds) {
+
+        Cart cart = getCartAndVerifyExists(cartId);
+
+        checkIfBurgersExistForEnteredIds(cart, enteredBurgerIds);
+
+        if (!burgerDAO.deleteBurgersByID(cart, enteredBurgerIds)) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+    }
 
     private Cart getCartAndVerifyExists(int cartId) {
 
         Cart cart = cartDAO.getCartByID(cartId);
 
-        if(cart == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        if (cart == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No cart could be found for the ID entered.");
         }
 
-
         return cart;
+    }
+
+    private void checkIfBurgersExistForEnteredIds(Cart cart, List<Integer> enteredBurgerIds) {
+        List<Integer> burgerIDsOfCart = cart.getBurgers().stream().map(Burger::getId).toList();
+
+        if (!new HashSet<>(burgerIDsOfCart).containsAll(enteredBurgerIds)) {
+            List<Integer> differenceList = enteredBurgerIds.stream().filter(burgerId -> !burgerIDsOfCart.contains(burgerId)).toList();
+
+            String differenceListWithoutBrackets = differenceList.toString().replace("[", "").replace("]", "");
+
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "For ID(s) " + differenceListWithoutBrackets + " no burgers were found in the cart");
+        }
     }
 }
