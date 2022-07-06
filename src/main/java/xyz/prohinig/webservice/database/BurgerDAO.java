@@ -2,10 +2,7 @@ package xyz.prohinig.webservice.database;
 
 import xyz.prohinig.webservice.model.*;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -57,7 +54,7 @@ public class BurgerDAO {
             if (connection == null) {
                 throw new IllegalStateException();
             }
-            String insertBurgerStatement = "insert into burger(patty_type, cheese, salad, tomato, cart_id)" + " values(?, ?, ?, ?, ?);";
+            String insertBurgerStatement = "INSERT INTO burger(patty_type, cheese, salad, tomato, cart_id)" + " VALUES(?, ?, ?, ?, ?);";
 
             try (PreparedStatement preparedStatement = connection.prepareStatement(insertBurgerStatement, PreparedStatement.RETURN_GENERATED_KEYS)) {
                 preparedStatement.setString(1, burger.getPattyType().name());
@@ -77,7 +74,31 @@ public class BurgerDAO {
                 }
             }
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException();
+        }
+    }
+
+    public boolean deleteBurgersById(Cart cart, List<Integer> burgerIdList) {
+
+        try (Connection connection = databaseConnection.getConnection()) {
+            if (connection == null) {
+                throw new IllegalStateException();
+            }
+
+            Array burgerIdsInArray = connection.createArrayOf("integer", burgerIdList.toArray());
+
+            String deleteBurgerStatement = "DELETE FROM burger WHERE cart_id = ? AND id = any (?);";
+
+            try (PreparedStatement preparedStatement = connection.prepareStatement(deleteBurgerStatement)) {
+                preparedStatement.setInt(1, cart.getId());
+                preparedStatement.setArray(2, burgerIdsInArray);
+                preparedStatement.executeUpdate();
+
+                return preparedStatement.getUpdateCount() > 0;
+            }
+
+        } catch (SQLException e) {
+            throw new IllegalStateException();
         }
     }
 
